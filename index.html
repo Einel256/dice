@@ -166,6 +166,13 @@
     .preset-main small { color: var(--muted); font-size: 10px; }
     .preset-command { font: 700 12px ui-monospace, "SFMono-Regular", Consolas, monospace; white-space: nowrap; }
     .empty-presets { padding: 11px 0; color: var(--muted); font-size: 11px; }
+    .data-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+    .data-actions .button { min-height: 36px; }
+    .character-details { border-top: 1px solid var(--line); padding-top: 8px; }
+    .character-details summary { color: var(--green); font-size: 11px; font-weight: 700; cursor: pointer; }
+    .character-details pre { max-height: 340px; overflow: auto; margin: 9px 0 0; padding: 11px; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--ink); background: #f7f8f5; border: 1px solid var(--line); border-radius: 4px; font: 11px/1.6 ui-monospace, "SFMono-Regular", Consolas, monospace; }
+    .empty-characters { grid-column: 1 / -1; padding: 20px 16px; text-align: center; color: var(--muted); border: 1px dashed var(--line); border-radius: 5px; font-size: 12px; }
+    .backup-status { align-self: center; color: var(--muted); font-size: 11px; }
     @media (max-width: 720px) {
       .topbar-inner, main { width: min(100% - 28px, 560px); }
       .topbar-inner { min-height: 72px; }
@@ -187,6 +194,8 @@
       .preset-row { grid-template-columns: minmax(0, 1fr) auto; }
       .preset-command { grid-column: 1; grid-row: 2; }
       .preset-row .delete-preset { grid-column: 2; grid-row: 1 / span 2; }
+      .data-actions { width: 100%; }
+      .data-actions .button { flex: 1; }
     }
   </style>
 </head>
@@ -203,7 +212,13 @@
 
   <main>
     <section aria-labelledby="characters-heading">
-      <div class="section-heading"><h2 id="characters-heading">キャラクターシート</h2><span class="load-status" id="import-status" aria-live="polite">テキストファイルをドロップ</span></div>
+      <div class="section-heading"><h2 id="characters-heading">キャラクターシート</h2><div class="data-actions">
+        <button class="button secondary" id="export-data" type="button">バックアップを書き出す</button>
+        <button class="button secondary" id="import-data-button" type="button">バックアップを読み込む</button>
+        <input id="import-data-file" type="file" accept=".json,application/json" hidden>
+        <span class="backup-status" id="backup-status" aria-live="polite"></span>
+      </div></div>
+      <div class="section-heading"><span class="load-status" id="import-status" aria-live="polite">テキストファイルをドロップ</span></div>
       <label class="drop-zone" id="drop-zone" for="sheet-files">
         <span class="drop-icon" aria-hidden="true">＋</span>
         <span><strong>シートをここにドロップ</strong><small>複数ファイル可 · .txt</small></span>
@@ -248,18 +263,21 @@
       const $ = (id) => document.getElementById(id);
       const charsKey = "dice-room-characters-v2";
       const presetsKey = "dice-room-contest-presets-v1";
+      const editionKey = "dice-room-edition-v1";
       const statRows = [["STR", "筋力"], ["CON", "耐久力"], ["POW", "精神力"], ["DEX", "敏捷性"], ["APP", "外見"], ["SIZ", "体格"], ["INT", "知性"], ["EDU", "教育"], ["SAN", "正気度"], ["幸運", "幸運"], ["アイデア", "アイデア"], ["知識", "知識"]];
       const aliases = new Map([["STR", "STR"], ["筋力", "STR"], ["CON", "CON"], ["耐久力", "CON"], ["POW", "POW"], ["精神力", "POW"], ["DEX", "DEX"], ["敏捷性", "DEX"], ["APP", "APP"], ["外見", "APP"], ["SIZ", "SIZ"], ["体格", "SIZ"], ["INT", "INT"], ["知性", "INT"], ["EDU", "EDU"], ["教育", "EDU"], ["SAN", "SAN"], ["幸運", "幸運"], ["アイデア", "アイデア"], ["知識", "知識"]]);
       let nextId = 1;
       let characters = loadJSON(charsKey, []);
       let presets = loadJSON(presetsKey, []);
-      if (!characters.length) characters = [newCharacter()];
+      $("edition-select").value = localStorage.getItem(editionKey) || "6";
+      $("header-edition").textContent = `クトゥルフ神話TRPG 第${$("edition-select").value}版`;
       nextId = Math.max(0, ...characters.map((character) => Number(String(character.id).replace(/\D/g, "")) || 0)) + 1;
 
       function loadJSON(key, fallback) {
         try { return JSON.parse(localStorage.getItem(key)) || fallback; } catch { return fallback; }
       }
       function saveCharacters() { localStorage.setItem(charsKey, JSON.stringify(characters)); }
+      function savePresets() { localStorage.setItem(presetsKey, JSON.stringify(presets)); }
       function newCharacter() { return { id: `char-${nextId++}`, name: "", stats: {}, skills: {}, raw: "" }; }
       function parseSheet(text) {
         const data = { name: "", stats: {}, skills: {}, raw: text };
@@ -297,7 +315,7 @@
       function characterLabel(character) { return character.name || `キャラクター ${characters.indexOf(character) + 1}`; }
       function setCharacterOptions(select) {
         const selected = select.value;
-        addOptions(select, characters.map((character) => [character.id, characterLabel(character)]), selected);
+        addOptions(select, characters.length ? characters.map((character) => [character.id, characterLabel(character)]) : [["", "キャラクター未読み込み"]], selected);
       }
       function valueLabel(value) { return `${value}`; }
       function updateItemSelect(prefix) {
@@ -308,6 +326,10 @@
         itemLabel.hidden = kind === "custom";
         $(`${prefix}-search`).closest(".skill-search").classList.toggle("visible", kind === "skill");
         if (kind === "custom") return;
+        if (!character) {
+          addOptions(itemSelect, [["", "キャラクター未読み込み"]]);
+          return;
+        }
         const values = kind === "stat" ? character.stats : character.skills;
         const query = kind === "skill" ? $(`${prefix}-search`).value.trim().toLocaleLowerCase("ja") : "";
         const entries = Object.entries(values).filter(([key]) => !query || key.toLocaleLowerCase("ja").includes(query)).sort(([a], [b]) => a.localeCompare(b, "ja"));
@@ -326,6 +348,13 @@
       function renderCharacters() {
         const list = $("character-list");
         list.replaceChildren();
+        if (!characters.length) {
+          const empty = document.createElement("div");
+          empty.className = "empty-characters";
+          empty.textContent = "キャラクターはまだありません。テキストファイルをドロップして読み込んでください。";
+          list.append(empty);
+          return;
+        }
         characters.forEach((character, index) => {
           const card = document.createElement("article");
           card.className = "panel character-panel character-card";
@@ -343,12 +372,19 @@
           remove.setAttribute("aria-label", `${characterLabel(character)}を削除`);
           remove.addEventListener("click", () => {
             characters.splice(index, 1);
-            if (!characters.length) characters.push(newCharacter());
             saveCharacters();
             refreshAll();
           });
           heading.append(name, counts, remove);
           card.append(heading);
+          const details = document.createElement("details");
+          details.className = "character-details";
+          const summary = document.createElement("summary");
+          summary.textContent = "読み込んだシート全文を表示";
+          const content = document.createElement("pre");
+          content.textContent = character.raw || "元テキストは保存されていません。";
+          details.append(summary, content);
+          card.append(details);
           list.append(card);
         });
       }
@@ -369,6 +405,48 @@
           refreshAll();
           $("import-status").textContent = `${textFiles.length} 件のファイルを読み込みました`;
         }).catch(() => { $("import-status").textContent = "ファイルを読み込めませんでした"; });
+      }
+      function exportBackup() {
+        const backup = {
+          format: "dice-room-backup",
+          version: 1,
+          exportedAt: new Date().toISOString(),
+          edition: $("edition-select").value,
+          characters,
+          presets
+        };
+        const blob = new Blob([JSON.stringify(backup, null, 2)], { type: "application/json" });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = `dice-room-backup-${new Date().toISOString().slice(0, 10)}.json`;
+        link.click();
+        URL.revokeObjectURL(url);
+        $("backup-status").textContent = "バックアップを保存しました";
+      }
+      async function importBackup(file) {
+        try {
+          const data = JSON.parse(await file.text());
+          if (data.format !== "dice-room-backup" || !Array.isArray(data.characters) || !Array.isArray(data.presets)) throw new Error("format");
+          characters = data.characters.map((character) => ({
+            id: String(character.id || `char-${nextId++}`),
+            name: String(character.name || ""),
+            raw: String(character.raw || ""),
+            stats: character.stats && typeof character.stats === "object" ? character.stats : {},
+            skills: character.skills && typeof character.skills === "object" ? character.skills : {}
+          }));
+          presets = data.presets.filter((preset) => preset && preset.active && preset.passive).map((preset, index) => ({ ...preset, id: String(preset.id || `preset-${Date.now()}-${index}`), name: String(preset.name || "対抗プリセット"), edition: preset.edition === "7" ? "7" : "6" }));
+          nextId = Math.max(0, ...characters.map((character) => Number(String(character.id).replace(/\D/g, "")) || 0)) + 1;
+          $("edition-select").value = data.edition === "7" ? "7" : "6";
+          localStorage.setItem(editionKey, $("edition-select").value);
+          saveCharacters();
+          savePresets();
+          $("header-edition").textContent = `クトゥルフ神話TRPG 第${$("edition-select").value}版`;
+          refreshAll();
+          $("backup-status").textContent = `${characters.length}キャラ・${presets.length}プリセットを復元しました`;
+        } catch {
+          $("backup-status").textContent = "バックアップを読み込めません。ファイル形式を確認してください。";
+        }
       }
       function commandTarget(prefix) {
         const raw = Math.max(0, Number($(`${prefix}-value`).value) || 0);
@@ -416,7 +494,7 @@
         $("header-edition").textContent = `クトゥルフ神話TRPG 第${$("edition-select").value}版`;
         for (const prefix of ["active", "passive"]) {
           const side = preset[prefix];
-          $(`${prefix}-character`).value = characters.some((character) => character.id === side.character) ? side.character : characters[0].id;
+          $(`${prefix}-character`).value = characters.some((character) => character.id === side.character) ? side.character : characters[0]?.id || "";
           $(`${prefix}-kind`).value = side.kind;
           updateItemSelect(prefix);
           if (side.item) $(`${prefix}-item`).value = side.item;
@@ -462,7 +540,7 @@
           remove.setAttribute("aria-label", `${preset.name}を削除`);
           remove.addEventListener("click", () => {
             presets = presets.filter((item) => item.id !== preset.id);
-            localStorage.setItem(presetsKey, JSON.stringify(presets));
+            savePresets();
             renderPresets();
           });
           row.append(apply, command, copy, remove);
@@ -496,6 +574,13 @@
       for (const eventName of ["dragenter", "dragover"]) dropZone.addEventListener(eventName, (event) => { event.preventDefault(); dropZone.classList.add("is-over"); });
       for (const eventName of ["dragleave", "drop"]) dropZone.addEventListener(eventName, (event) => { event.preventDefault(); dropZone.classList.remove("is-over"); });
       dropZone.addEventListener("drop", (event) => receiveFiles(event.dataTransfer.files));
+      $("export-data").addEventListener("click", exportBackup);
+      $("import-data-button").addEventListener("click", () => $("import-data-file").click());
+      $("import-data-file").addEventListener("change", (event) => {
+        const file = event.target.files[0];
+        if (file) importBackup(file);
+        event.target.value = "";
+      });
       for (const prefix of ["active", "passive"]) {
         $(`${prefix}-character`).addEventListener("change", () => updateItemSelect(prefix));
         $(`${prefix}-kind`).addEventListener("change", () => updateItemSelect(prefix));
@@ -510,11 +595,12 @@
       }
       $("edition-select").addEventListener("change", () => {
         $("header-edition").textContent = `クトゥルフ神話TRPG 第${$("edition-select").value}版`;
+        localStorage.setItem(editionKey, $("edition-select").value);
         updateContestChance();
       });
       $("save-preset").addEventListener("click", () => {
         presets.unshift(snapshotPreset());
-        localStorage.setItem(presetsKey, JSON.stringify(presets));
+        savePresets();
         renderPresets();
       });
       refreshAll();
