@@ -153,12 +153,12 @@
     .character-card .panel-head { margin: 0; }
     .character-card .panel-head h3 { font-size: 13px; }
     .character-card .remove-character { min-height: 32px; padding: 0 9px; font-size: 11px; }
-    .palette-fields { display: grid; grid-template-columns: 1.2fr 1fr 1.4fr 100px; gap: 10px; align-items: end; }
-    .palette-fields label, .preset-actions label { display: grid; gap: 5px; color: var(--muted); font-size: 11px; }
-    .command-line { min-height: 58px; margin-top: 14px; padding: 9px 11px; display: flex; align-items: center; justify-content: space-between; gap: 12px; background: #f4f7f3; border-left: 3px solid var(--green); }
-    .command-line code { font: 700 17px ui-monospace, "SFMono-Regular", Consolas, monospace; color: var(--deep); }
-    .preset-actions { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 9px; align-items: end; margin-top: 15px; }
-    .preset-actions .button { min-width: 72px; }
+    .contest-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
+    .contest-toolbar .section-caption { margin-right: auto; }
+    .skill-search { display: none; margin-top: 7px; }
+    .skill-search.visible { display: block; }
+    .skill-search input { min-height: 38px; }
+    .save-preset { width: 100%; margin-top: 14px; }
     .preset-list { display: grid; gap: 7px; margin-top: 12px; }
     .preset-row { min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 7px; align-items: center; padding: 8px 10px; border: 1px solid var(--line); border-radius: 4px; background: #fff; }
     .preset-main { min-width: 0; display: grid; gap: 3px; padding: 0; text-align: left; color: var(--ink); border: 0; background: transparent; }
@@ -174,7 +174,6 @@
       .section-heading { align-items: flex-start; flex-direction: column; gap: 5px; }
       .tool-panel + .tool-panel { margin-top: 2px; }
       .contest-grid { grid-template-columns: 1fr; }
-      .palette-fields { grid-template-columns: 1fr 1fr; }
     }
     @media (max-width: 420px) {
       .edition { padding: 6px 7px; font-size: 10px; }
@@ -184,7 +183,6 @@
       .solo-fields label:first-child { grid-column: 1 / -1; }
       .edition-control { width: 100%; justify-content: space-between; }
       .edition-control select { flex: 1; }
-      .palette-fields { grid-template-columns: 1fr; }
       .section-heading { flex-wrap: wrap; }
       .preset-row { grid-template-columns: minmax(0, 1fr) auto; }
       .preset-command { grid-column: 1; grid-row: 2; }
@@ -214,38 +212,32 @@
       <div class="character-grid" id="character-list"></div>
     </section>
 
-    <section class="tools" aria-label="チャットパレット">
-      <div class="section-heading"><h2>チャットパレット</h2><label class="edition-control"><select id="edition-select" aria-label="ルールの版"><option value="6">CoC 6版</option><option value="7">CoC 7版</option></select></label></div>
-      <article class="panel tool-panel"><div class="tool-body">
-        <div class="palette-fields">
-          <label>キャラクター<select id="palette-character"></select></label>
-          <label>判定種別<select id="palette-kind"><option value="skill">技能</option><option value="stat">能力値</option><option value="custom">任意の値</option></select></label>
-          <label class="palette-item-label">項目<select id="palette-item"></select></label>
-          <label>目標値<input id="palette-value" type="number" min="0" max="999" value="50"></label>
-        </div>
-        <div class="command-line"><code id="palette-command">CCB&lt;=50</code><button class="button" id="copy-palette" type="button">コピー</button></div>
-      </div></article>
-    </section>
-
     <section class="tools" aria-label="対抗ロールプリセット">
-      <div class="section-heading"><h2>対抗プリセット</h2><span class="section-caption">組み合わせを保存してすぐコピー</span></div>
+      <div class="section-heading"><h2>対抗ロール</h2></div>
       <article class="panel tool-panel"><div class="tool-body">
+        <div class="contest-toolbar"><label class="edition-control"><select id="edition-select" aria-label="ルールの版"><option value="6">CoC 6版</option><option value="7">CoC 7版</option></select></label><span class="section-caption" id="formula-caption">能力値同士は6版対抗表で計算</span></div>
         <div class="contest-grid">
           <fieldset class="side-fields"><legend>能動側</legend>
             <label>キャラクター<select id="active-character"></select></label>
             <label>判定種別<select id="active-kind"><option value="stat">能力値</option><option value="skill">技能</option><option value="custom">任意の値</option></select></label>
-            <label class="source-field">項目<select id="active-item"></select></label>
+            <label class="source-field">項目
+              <span class="skill-search"><input id="active-search" type="search" placeholder="技能を検索" aria-label="能動側の技能を検索"></span>
+              <select id="active-item"></select>
+            </label>
             <label>値<input id="active-value" type="number" min="0" max="999" value="50"></label>
           </fieldset>
           <fieldset class="side-fields"><legend>受動側</legend>
             <label>キャラクター<select id="passive-character"></select></label>
             <label>判定種別<select id="passive-kind"><option value="stat">能力値</option><option value="skill">技能</option><option value="custom">任意の値</option></select></label>
-            <label class="source-field">項目<select id="passive-item"></select></label>
+            <label class="source-field">項目
+              <span class="skill-search"><input id="passive-search" type="search" placeholder="技能を検索" aria-label="受動側の技能を検索"></span>
+              <select id="passive-item"></select>
+            </label>
             <label>値<input id="passive-value" type="number" min="0" max="999" value="50"></label>
           </fieldset>
         </div>
-        <div class="chance-row"><span id="contest-caption">6版 対抗成功率</span><strong class="chance" id="contest-chance">50%</strong></div>
-        <div class="preset-actions"><label>プリセット名<input id="preset-name" type="text" maxlength="48" placeholder="例: STR対抗"></label><button class="button" id="save-preset" type="button">保存</button></div>
+        <div class="chance-row"><span id="contest-caption">対抗目標値</span><strong class="chance" id="contest-chance">50%</strong></div>
+        <button class="button save-preset" id="save-preset" type="button">この組み合わせをプリセット保存</button>
         <div class="preset-list" id="preset-list" aria-live="polite"></div>
       </div></article>
     </section>
@@ -314,19 +306,19 @@
         const itemSelect = $(`${prefix}-item`);
         const itemLabel = itemSelect.closest("label");
         itemLabel.hidden = kind === "custom";
+        $(`${prefix}-search`).closest(".skill-search").classList.toggle("visible", kind === "skill");
         if (kind === "custom") return;
         const values = kind === "stat" ? character.stats : character.skills;
-        const entries = Object.entries(values).sort(([a], [b]) => a.localeCompare(b, "ja"));
+        const query = kind === "skill" ? $(`${prefix}-search`).value.trim().toLocaleLowerCase("ja") : "";
+        const entries = Object.entries(values).filter(([key]) => !query || key.toLocaleLowerCase("ja").includes(query)).sort(([a], [b]) => a.localeCompare(b, "ja"));
         const prior = itemSelect.value;
         addOptions(itemSelect, entries.length ? entries.map(([key, value]) => [key, `${key} (${valueLabel(value)})`]) : [["", "項目なし"]], prior);
         if (values[itemSelect.value] !== undefined) $(`${prefix}-value`).value = values[itemSelect.value];
       }
       function refreshAll() {
-        for (const id of ["palette-character", "active-character", "passive-character"]) setCharacterOptions($(id));
-        updateItemSelect("palette");
+        for (const id of ["active-character", "passive-character"]) setCharacterOptions($(id));
         updateItemSelect("active");
         updateItemSelect("passive");
-        updatePaletteCommand();
         updateContestChance();
         renderCharacters();
         renderPresets();
@@ -380,21 +372,43 @@
       }
       function commandTarget(prefix) {
         const raw = Math.max(0, Number($(`${prefix}-value`).value) || 0);
-        return $(`${prefix}-kind`).value === "stat" ? Math.min(100, raw * 5) : Math.min(100, raw);
+        return $(`${prefix}-kind`).value === "stat" && $("edition-select").value === "7" ? Math.min(100, raw * 5) : Math.min(100, raw);
       }
-      function updatePaletteCommand() { $("palette-command").textContent = `CCB<=${commandTarget("palette")}`; }
+      function sideValue(prefix) { return Math.max(0, Number($(`${prefix}-value`).value) || 0); }
+      function contestTarget(edition) {
+        const activeKind = $("active-kind").value;
+        const passiveKind = $("passive-kind").value;
+        const activeValue = sideValue("active");
+        const passiveValue = sideValue("passive");
+        if (activeKind === "skill" && passiveKind === "skill") {
+          return Math.max(0, Math.min(100, 50 + (Math.floor(activeValue / 5) - Math.floor(passiveValue / 5)) * 5));
+        }
+        if (edition === "6" && activeKind === "stat" && passiveKind === "stat") {
+          return Math.max(0, Math.min(100, 50 + (activeValue - passiveValue) * 5));
+        }
+        return commandTarget("active");
+      }
       function updateContestChance() {
-        const chance = Math.max(0, Math.min(100, 50 + (Number($("active-value").value || 0) - Number($("passive-value").value || 0)) * 5));
-        const value = $("edition-select").value === "6" && $("active-kind").value === "stat" && $("passive-kind").value === "stat" ? chance : commandTarget("active");
-        $("contest-caption").textContent = $("edition-select").value === "6" ? "6版 対抗成功率" : "能動側の目標値（7版）";
+        const edition = $("edition-select").value;
+        const skillContest = $("active-kind").value === "skill" && $("passive-kind").value === "skill";
+        const value = contestTarget(edition);
+        $("contest-caption").textContent = skillContest ? "技能対抗の目標値" : edition === "6" ? "6版 対抗目標値" : "7版 能動側の目標値";
+        $("formula-caption").textContent = skillContest ? "50 + (⌊能動技能/5⌋ − ⌊受動技能/5⌋) × 5" : edition === "6" ? "能力値同士は6版対抗表で計算" : "7版の能力値ロールは能力値×5";
         $("contest-chance").textContent = `${value}%`;
       }
-      function snapshotPreset(name) {
-        return { id: `preset-${Date.now()}-${Math.random().toString(16).slice(2)}`, name, edition: $("edition-select").value, active: captureSide("active"), passive: captureSide("passive") };
+      function snapshotPreset() {
+        const active = captureSide("active");
+        const passive = captureSide("passive");
+        const activeLabel = active.item || active.value;
+        const passiveLabel = passive.item || passive.value;
+        return { id: `preset-${Date.now()}-${Math.random().toString(16).slice(2)}`, name: activeLabel === passiveLabel ? `${activeLabel}対抗` : `${activeLabel}・${passiveLabel}対抗`, edition: $("edition-select").value, active, passive };
       }
-      function presetTarget(side) {
-        const value = Math.max(0, Number(side.value) || 0);
-        return side.kind === "stat" ? Math.min(100, value * 5) : Math.min(100, value);
+      function presetTarget(preset) {
+        const activeValue = Math.max(0, Number(preset.active.value) || 0);
+        const passiveValue = Math.max(0, Number(preset.passive.value) || 0);
+        if (preset.active.kind === "skill" && preset.passive.kind === "skill") return Math.max(0, Math.min(100, 50 + (Math.floor(activeValue / 5) - Math.floor(passiveValue / 5)) * 5));
+        if (preset.edition === "6" && preset.active.kind === "stat" && preset.passive.kind === "stat") return Math.max(0, Math.min(100, 50 + (activeValue - passiveValue) * 5));
+        return preset.edition === "7" && preset.active.kind === "stat" ? Math.min(100, activeValue * 5) : Math.min(100, activeValue);
       }
       function captureSide(prefix) { return { character: $(`${prefix}-character`).value, kind: $(`${prefix}-kind`).value, item: $(`${prefix}-item`).value, value: $(`${prefix}-value`).value }; }
       function applyPreset(preset) {
@@ -408,7 +422,6 @@
           if (side.item) $(`${prefix}-item`).value = side.item;
           $(`${prefix}-value`).value = side.value;
         }
-        updatePaletteCommand();
         updateContestChance();
       }
       function renderPresets() {
@@ -433,7 +446,7 @@
           caption.textContent = `${preset.edition}版 · ${sideCaption(preset.active)} 対 ${sideCaption(preset.passive)}`;
           apply.append(title, caption);
           apply.addEventListener("click", () => applyPreset(preset));
-          const target = presetTarget(preset.active);
+          const target = presetTarget(preset);
           const command = document.createElement("code");
           command.className = "preset-command";
           command.textContent = `CCB<=${target}`;
@@ -483,32 +496,27 @@
       for (const eventName of ["dragenter", "dragover"]) dropZone.addEventListener(eventName, (event) => { event.preventDefault(); dropZone.classList.add("is-over"); });
       for (const eventName of ["dragleave", "drop"]) dropZone.addEventListener(eventName, (event) => { event.preventDefault(); dropZone.classList.remove("is-over"); });
       dropZone.addEventListener("drop", (event) => receiveFiles(event.dataTransfer.files));
-      for (const prefix of ["palette", "active", "passive"]) {
+      for (const prefix of ["active", "passive"]) {
         $(`${prefix}-character`).addEventListener("change", () => updateItemSelect(prefix));
         $(`${prefix}-kind`).addEventListener("change", () => updateItemSelect(prefix));
+        $(`${prefix}-search`).addEventListener("input", () => updateItemSelect(prefix));
         $(`${prefix}-item`).addEventListener("change", () => {
           const character = characters.find((item) => item.id === $(`${prefix}-character`).value) || characters[0];
           const values = $(`${prefix}-kind`).value === "stat" ? character.stats : character.skills;
           if (values[$(`${prefix}-item`).value] !== undefined) $(`${prefix}-value`).value = values[$(`${prefix}-item`).value];
-          updatePaletteCommand();
           updateContestChance();
         });
-        $(`${prefix}-value`).addEventListener("input", () => { updatePaletteCommand(); updateContestChance(); });
+        $(`${prefix}-value`).addEventListener("input", updateContestChance);
       }
       $("edition-select").addEventListener("change", () => {
         $("header-edition").textContent = `クトゥルフ神話TRPG 第${$("edition-select").value}版`;
-        updatePaletteCommand();
         updateContestChance();
       });
       $("save-preset").addEventListener("click", () => {
-        const name = $("preset-name").value.trim();
-        if (!name) { $("preset-name").focus(); return; }
-        presets.unshift(snapshotPreset(name));
+        presets.unshift(snapshotPreset());
         localStorage.setItem(presetsKey, JSON.stringify(presets));
-        $("preset-name").value = "";
         renderPresets();
       });
-      $("copy-palette").addEventListener("click", (event) => copyText($("palette-command").textContent, event.currentTarget));
       refreshAll();
     })();
   </script>
