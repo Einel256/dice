@@ -141,6 +141,31 @@
     .solo-roll-button { width: 100%; }
     .small-note { margin: 11px 0 0; color: var(--muted); font-size: 10px; line-height: 1.6; }
     .footer-note { margin: 17px 0 0; color: var(--muted); font-size: 10px; line-height: 1.6; text-align: center; }
+    .drop-zone { min-height: 94px; display: flex; justify-content: center; align-items: center; gap: 14px; border: 1px dashed #9aaca2; border-radius: 5px; background: rgba(255,255,255,.76); cursor: pointer; }
+    .drop-zone.is-over { border-color: var(--green); background: var(--green-soft); }
+    .drop-zone input { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; }
+    .drop-zone span:last-of-type { display: grid; gap: 5px; }
+    .drop-zone strong { font-size: 13px; }
+    .drop-zone small, .section-caption { color: var(--muted); font-size: 11px; }
+    .drop-icon { width: 32px; height: 32px; display: grid; place-items: center; border: 1px solid var(--line); border-radius: 50%; color: var(--green); font-size: 20px; }
+    .character-grid { margin-top: 13px; }
+    .character-card { padding: 12px 14px; border-top-width: 2px; box-shadow: none; }
+    .character-card .panel-head { margin: 0; }
+    .character-card .panel-head h3 { font-size: 13px; }
+    .character-card .remove-character { min-height: 32px; padding: 0 9px; font-size: 11px; }
+    .palette-fields { display: grid; grid-template-columns: 1.2fr 1fr 1.4fr 100px; gap: 10px; align-items: end; }
+    .palette-fields label, .preset-actions label { display: grid; gap: 5px; color: var(--muted); font-size: 11px; }
+    .command-line { min-height: 58px; margin-top: 14px; padding: 9px 11px; display: flex; align-items: center; justify-content: space-between; gap: 12px; background: #f4f7f3; border-left: 3px solid var(--green); }
+    .command-line code { font: 700 17px ui-monospace, "SFMono-Regular", Consolas, monospace; color: var(--deep); }
+    .preset-actions { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 9px; align-items: end; margin-top: 15px; }
+    .preset-actions .button { min-width: 72px; }
+    .preset-list { display: grid; gap: 7px; margin-top: 12px; }
+    .preset-row { min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 7px; align-items: center; padding: 8px 10px; border: 1px solid var(--line); border-radius: 4px; background: #fff; }
+    .preset-main { min-width: 0; display: grid; gap: 3px; padding: 0; text-align: left; color: var(--ink); border: 0; background: transparent; }
+    .preset-main strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; }
+    .preset-main small { color: var(--muted); font-size: 10px; }
+    .preset-command { font: 700 12px ui-monospace, "SFMono-Regular", Consolas, monospace; white-space: nowrap; }
+    .empty-presets { padding: 11px 0; color: var(--muted); font-size: 11px; }
     @media (max-width: 720px) {
       .topbar-inner, main { width: min(100% - 28px, 560px); }
       .topbar-inner { min-height: 72px; }
@@ -149,6 +174,7 @@
       .section-heading { align-items: flex-start; flex-direction: column; gap: 5px; }
       .tool-panel + .tool-panel { margin-top: 2px; }
       .contest-grid { grid-template-columns: 1fr; }
+      .palette-fields { grid-template-columns: 1fr 1fr; }
     }
     @media (max-width: 420px) {
       .edition { padding: 6px 7px; font-size: 10px; }
@@ -158,6 +184,11 @@
       .solo-fields label:first-child { grid-column: 1 / -1; }
       .edition-control { width: 100%; justify-content: space-between; }
       .edition-control select { flex: 1; }
+      .palette-fields { grid-template-columns: 1fr; }
+      .section-heading { flex-wrap: wrap; }
+      .preset-row { grid-template-columns: minmax(0, 1fr) auto; }
+      .preset-command { grid-column: 1; grid-row: 2; }
+      .preset-row .delete-preset { grid-column: 2; grid-row: 1 / span 2; }
     }
   </style>
 </head>
@@ -174,523 +205,311 @@
 
   <main>
     <section aria-labelledby="characters-heading">
-      <div class="section-heading">
-        <h2 id="characters-heading">キャラクター</h2>
-        <button class="button" id="add-character" type="button">＋ キャラクター追加</button>
-      </div>
+      <div class="section-heading"><h2 id="characters-heading">キャラクターシート</h2><span class="load-status" id="import-status" aria-live="polite">テキストファイルをドロップ</span></div>
+      <label class="drop-zone" id="drop-zone" for="sheet-files">
+        <span class="drop-icon" aria-hidden="true">＋</span>
+        <span><strong>シートをここにドロップ</strong><small>複数ファイル可 · .txt</small></span>
+        <input id="sheet-files" type="file" accept=".txt,text/plain" multiple>
+      </label>
       <div class="character-grid" id="character-list"></div>
     </section>
 
-    <section class="tools" aria-label="ロール計算">
-      <div class="section-heading">
-        <h2>ロール計算</h2>
-        <label class="edition-control">ルール
-          <select id="edition-select" aria-label="ルールの版"><option value="6">CoC 6版</option><option value="7">CoC 7版</option></select>
-        </label>
-      </div>
-      <div class="tool-grid">
-        <article class="panel tool-panel">
-          <div class="tool-title"><h3>対抗ロール</h3><span class="rule-tag" id="contest-rule">6版: 50 + (能動値 − 受動値) × 5</span></div>
-          <div class="tool-body">
-            <div class="contest-grid">
-              <fieldset class="side-fields"><legend>能動側</legend>
-                <label>キャラクター<select id="active-character"></select></label>
-                <label>判定種別<select id="active-kind"><option value="stat">能力値</option><option value="skill">技能</option><option value="custom">任意の値</option></select></label>
-                <label class="source-field">項目<select id="active-item"></select></label>
-                <label>目標値<input id="active-value" type="number" min="0" max="999" value="50"></label>
-              </fieldset>
-              <fieldset class="side-fields"><legend>受動側</legend>
-                <label>キャラクター<select id="passive-character"></select></label>
-                <label>判定種別<select id="passive-kind"><option value="stat">能力値</option><option value="skill">技能</option><option value="custom">任意の値</option></select></label>
-                <label class="source-field">項目<select id="passive-item"></select></label>
-                <label>目標値<input id="passive-value" type="number" min="0" max="999" value="50"></label>
-              </fieldset>
-            </div>
-            <div class="chance-row"><span id="contest-chance-label">Aの対抗成功率</span><strong class="chance" id="contest-chance">50<small>%</small></strong></div>
-            <button class="button" id="roll-contest" type="button">🎲 対抗ロール</button>
-            <div class="roll-result" id="contest-result" aria-live="polite"></div>
-            <p class="small-note" id="contest-note">6版の対抗成功率を表示します。対抗するキャラクターと項目は自由に組み合わせられます。</p>
-          </div>
-        </article>
+    <section class="tools" aria-label="チャットパレット">
+      <div class="section-heading"><h2>チャットパレット</h2><label class="edition-control"><select id="edition-select" aria-label="ルールの版"><option value="6">CoC 6版</option><option value="7">CoC 7版</option></select></label></div>
+      <article class="panel tool-panel"><div class="tool-body">
+        <div class="palette-fields">
+          <label>キャラクター<select id="palette-character"></select></label>
+          <label>判定種別<select id="palette-kind"><option value="skill">技能</option><option value="stat">能力値</option><option value="custom">任意の値</option></select></label>
+          <label class="palette-item-label">項目<select id="palette-item"></select></label>
+          <label>目標値<input id="palette-value" type="number" min="0" max="999" value="50"></label>
+        </div>
+        <div class="command-line"><code id="palette-command">CCB&lt;=50</code><button class="button" id="copy-palette" type="button">コピー</button></div>
+      </div></article>
+    </section>
 
-        <article class="panel tool-panel">
-          <div class="tool-title"><h3>単体判定</h3><span class="rule-tag">出力コマンド: CCB&lt;=n</span></div>
-          <div class="tool-body">
-            <div class="solo-fields solo-fields-wide">
-              <label>キャラクター<select id="solo-character"></select></label>
-              <label>判定種別<select id="solo-kind"><option value="skill">技能</option><option value="stat">能力値</option><option value="custom">任意の値</option></select></label>
-              <label class="solo-item-label">項目<select id="solo-item"></select></label>
-              <label>目標値<input id="solo-value" type="number" min="0" max="999" value="50"></label>
-            </div>
-            <button class="button orange solo-roll-button" id="roll-solo" type="button">🎲 1d100 を振る</button>
-            <div class="roll-result" id="solo-result" aria-live="polite"></div>
-            <p class="small-note">CCB&lt;=n 形式のコマンドを表示します。CoC7版では通常・ハード・イクストリーム成功も判定します。</p>
-          </div>
-        </article>
-      </div>
-      <p class="footer-note">コピーしたコマンドはココフォリア等のチャット欄に貼り付けて使えます。ダイス結果の裁定は卓のルールを優先してください。</p>
+    <section class="tools" aria-label="対抗ロールプリセット">
+      <div class="section-heading"><h2>対抗プリセット</h2><span class="section-caption">組み合わせを保存してすぐコピー</span></div>
+      <article class="panel tool-panel"><div class="tool-body">
+        <div class="contest-grid">
+          <fieldset class="side-fields"><legend>能動側</legend>
+            <label>キャラクター<select id="active-character"></select></label>
+            <label>判定種別<select id="active-kind"><option value="stat">能力値</option><option value="skill">技能</option><option value="custom">任意の値</option></select></label>
+            <label class="source-field">項目<select id="active-item"></select></label>
+            <label>値<input id="active-value" type="number" min="0" max="999" value="50"></label>
+          </fieldset>
+          <fieldset class="side-fields"><legend>受動側</legend>
+            <label>キャラクター<select id="passive-character"></select></label>
+            <label>判定種別<select id="passive-kind"><option value="stat">能力値</option><option value="skill">技能</option><option value="custom">任意の値</option></select></label>
+            <label class="source-field">項目<select id="passive-item"></select></label>
+            <label>値<input id="passive-value" type="number" min="0" max="999" value="50"></label>
+          </fieldset>
+        </div>
+        <div class="chance-row"><span id="contest-caption">6版 対抗成功率</span><strong class="chance" id="contest-chance">50%</strong></div>
+        <div class="preset-actions"><label>プリセット名<input id="preset-name" type="text" maxlength="48" placeholder="例: STR対抗"></label><button class="button" id="save-preset" type="button">保存</button></div>
+        <div class="preset-list" id="preset-list" aria-live="polite"></div>
+      </div></article>
     </section>
   </main>
 
   <script>
     (() => {
-      const statLabels = [
-        ["STR", "STR / 筋力"], ["CON", "CON / 耐久力"], ["POW", "POW / 精神力"],
-        ["DEX", "DEX / 敏捷性"], ["APP", "APP / 外見"], ["SIZ", "SIZ / 体格"],
-        ["INT", "INT / 知性"], ["EDU", "EDU / 教育"], ["SAN", "SAN / 正気度"],
-        ["幸運", "幸運"], ["アイデア", "アイデア"], ["知識", "知識"]
-      ];
-      const statAliases = new Map([
-        ["STR", "STR"], ["筋力", "STR"], ["CON", "CON"], ["耐久力", "CON"],
-        ["POW", "POW"], ["精神力", "POW"], ["DEX", "DEX"], ["敏捷性", "DEX"],
-        ["APP", "APP"], ["外見", "APP"], ["SIZ", "SIZ"], ["体格", "SIZ"],
-        ["INT", "INT"], ["知性", "INT"], ["EDU", "EDU"], ["教育", "EDU"],
-        ["SAN", "SAN"], ["幸運", "幸運"], ["アイデア", "アイデア"], ["知識", "知識"]
-      ]);
-      const characters = [];
-      let nextCharacterId = 1;
       const $ = (id) => document.getElementById(id);
-      const emptyCharacter = () => ({ id: `character-${nextCharacterId++}`, name: "", raw: "", stats: {}, skills: {} });
+      const charsKey = "dice-room-characters-v2";
+      const presetsKey = "dice-room-contest-presets-v1";
+      const statRows = [["STR", "筋力"], ["CON", "耐久力"], ["POW", "精神力"], ["DEX", "敏捷性"], ["APP", "外見"], ["SIZ", "体格"], ["INT", "知性"], ["EDU", "教育"], ["SAN", "正気度"], ["幸運", "幸運"], ["アイデア", "アイデア"], ["知識", "知識"]];
+      const aliases = new Map([["STR", "STR"], ["筋力", "STR"], ["CON", "CON"], ["耐久力", "CON"], ["POW", "POW"], ["精神力", "POW"], ["DEX", "DEX"], ["敏捷性", "DEX"], ["APP", "APP"], ["外見", "APP"], ["SIZ", "SIZ"], ["体格", "SIZ"], ["INT", "INT"], ["知性", "INT"], ["EDU", "EDU"], ["教育", "EDU"], ["SAN", "SAN"], ["幸運", "幸運"], ["アイデア", "アイデア"], ["知識", "知識"]]);
+      let nextId = 1;
+      let characters = loadJSON(charsKey, []);
+      let presets = loadJSON(presetsKey, []);
+      if (!characters.length) characters = [newCharacter()];
+      nextId = Math.max(0, ...characters.map((character) => Number(String(character.id).replace(/\D/g, "")) || 0)) + 1;
 
-      function parseCharacter(text) {
-        const parsed = { name: "", stats: {}, skills: {} };
+      function loadJSON(key, fallback) {
+        try { return JSON.parse(localStorage.getItem(key)) || fallback; } catch { return fallback; }
+      }
+      function saveCharacters() { localStorage.setItem(charsKey, JSON.stringify(characters)); }
+      function newCharacter() { return { id: `char-${nextId++}`, name: "", stats: {}, skills: {}, raw: "" }; }
+      function parseSheet(text) {
+        const data = { name: "", stats: {}, skills: {}, raw: text };
         const lines = text.split(/\r?\n/);
-        const nameLine = lines.find((line) => /^\s*(?:【基本情報】\s*)?名前\s*[:：]/.test(line));
-        if (nameLine) parsed.name = nameLine.replace(/^\s*(?:【基本情報】\s*)?名前\s*[:：]\s*/, "").trim();
-        let inSkills = false;
+        const name = lines.find((line) => /^\s*(?:【基本情報】\s*)?名前\s*[:：]/.test(line));
+        if (name) data.name = name.replace(/^\s*(?:【基本情報】\s*)?名前\s*[:：]\s*/, "").trim();
+        let skills = false;
         for (const line of lines) {
-          if (/【\s*技能値\s*】/.test(line)) inSkills = true;
-          if (!inSkills) {
+          if (/【\s*技能値\s*】/.test(line)) skills = true;
+          if (!skills) {
             const match = line.match(/^\s*([^\s]+)\s+(-?\d+)(?:\s+[-\d]+)*/);
             if (match) {
-              const key = statAliases.get(match[1].toUpperCase()) || statAliases.get(match[1]);
-              if (key) parsed.stats[key] = Number(match[2]);
+              const key = aliases.get(match[1].toUpperCase()) || aliases.get(match[1]);
+              if (key) data.stats[key] = Number(match[2]);
             }
-            continue;
+          } else {
+            if (!line.trim() || /技能値|技能名|合計|初期値|職業P|興味P|成長分|その他/.test(line) || /^\s*[『「【]/.test(line)) continue;
+            const match = line.match(/^\s*(.*?)\s+(\d{1,3})(?:\s+\d{1,3}){0,6}\s*$/);
+            if (match && match[1].trim() && !/^[-\d\s]+$/.test(match[1])) data.skills[match[1].trim()] = Number(match[2]);
           }
-          if (!line.trim() || /【\s*技能値\s*】|技能名|合計|初期値|職業P|興味P|成長分|その他/.test(line) || /^\s*[『「【]/.test(line)) continue;
-          const match = line.match(/^\s*(.*?)\s+(\d{1,3})(?:\s+\d{1,3}){0,6}\s*$/);
-          if (match && match[1].trim() && !/^[-\d\s]+$/.test(match[1])) parsed.skills[match[1].trim()] = Number(match[2]);
         }
-        return parsed;
+        return data;
       }
-
-      function addCharacter(data = emptyCharacter()) {
-        characters.push(data);
+      function addOptions(select, values, selected) {
+        const previous = selected ?? select.value;
+        select.replaceChildren();
+        for (const [value, label] of values) {
+          const option = document.createElement("option");
+          option.value = value;
+          option.textContent = label;
+          select.append(option);
+        }
+        if (values.some(([value]) => String(value) === String(previous))) select.value = previous;
+      }
+      function characterLabel(character) { return character.name || `キャラクター ${characters.indexOf(character) + 1}`; }
+      function setCharacterOptions(select) {
+        const selected = select.value;
+        addOptions(select, characters.map((character) => [character.id, characterLabel(character)]), selected);
+      }
+      function valueLabel(value) { return `${value}`; }
+      function updateItemSelect(prefix) {
+        const character = characters.find((item) => item.id === $(`${prefix}-character`).value) || characters[0];
+        const kind = $(`${prefix}-kind`).value;
+        const itemSelect = $(`${prefix}-item`);
+        const itemLabel = itemSelect.closest("label");
+        itemLabel.hidden = kind === "custom";
+        if (kind === "custom") return;
+        const values = kind === "stat" ? character.stats : character.skills;
+        const entries = Object.entries(values).sort(([a], [b]) => a.localeCompare(b, "ja"));
+        const prior = itemSelect.value;
+        addOptions(itemSelect, entries.length ? entries.map(([key, value]) => [key, `${key} (${valueLabel(value)})`]) : [["", "項目なし"]], prior);
+        if (values[itemSelect.value] !== undefined) $(`${prefix}-value`).value = values[itemSelect.value];
+      }
+      function refreshAll() {
+        for (const id of ["palette-character", "active-character", "passive-character"]) setCharacterOptions($(id));
+        updateItemSelect("palette");
+        updateItemSelect("active");
+        updateItemSelect("passive");
+        updatePaletteCommand();
+        updateContestChance();
         renderCharacters();
-        refreshCharacterOptions();
+        renderPresets();
       }
-
       function renderCharacters() {
         const list = $("character-list");
         list.replaceChildren();
-        for (const character of characters) {
+        characters.forEach((character, index) => {
           const card = document.createElement("article");
           card.className = "panel character-panel character-card";
-          card.dataset.characterId = character.id;
-          card.innerHTML = `<div class="panel-head"><h3></h3><span class="badge">シート</span></div><textarea aria-label="キャラクターシートテキスト" placeholder="いあきゃら等のキャラクターシートテキストを貼り付け"></textarea><div class="panel-actions"><button class="button load-character" type="button">↓ 読み込む</button><span class="load-status" aria-live="polite">${Object.keys(character.stats).length || Object.keys(character.skills).length ? `${Object.keys(character.stats).length}能力値・${Object.keys(character.skills).length}技能` : "未読み込み"}</span><button class="button secondary remove-character" type="button" aria-label="キャラクターを削除" title="削除">削除</button></div><div class="loaded-summary"></div>`;
-          card.querySelector("h3").textContent = character.name || `キャラクター ${characters.indexOf(character) + 1}`;
-          const sheetInput = card.querySelector("textarea");
-          sheetInput.value = character.raw;
-          sheetInput.addEventListener("input", () => { character.raw = sheetInput.value; });
-          const status = card.querySelector(".load-status");
-          if (!Object.keys(character.stats).length && !Object.keys(character.skills).length && character.raw) status.classList.add("error");
-          const summary = card.querySelector(".loaded-summary");
-          if (Object.keys(character.stats).length) addChip(summary, `${Object.keys(character.stats).length} 能力値`);
-          if (Object.keys(character.skills).length) addChip(summary, `${Object.keys(character.skills).length} 技能`);
-          card.querySelector(".load-character").addEventListener("click", () => {
-            character.raw = card.querySelector("textarea").value;
-            Object.assign(character, parseCharacter(character.raw));
-            renderCharacters();
-            refreshCharacterOptions();
+          const heading = document.createElement("div");
+          heading.className = "panel-head";
+          const name = document.createElement("h3");
+          name.textContent = characterLabel(character);
+          const counts = document.createElement("span");
+          counts.className = "badge";
+          counts.textContent = `${Object.keys(character.stats).length} 能力値 · ${Object.keys(character.skills).length} 技能`;
+          const remove = document.createElement("button");
+          remove.className = "button secondary remove-character";
+          remove.type = "button";
+          remove.textContent = "削除";
+          remove.setAttribute("aria-label", `${characterLabel(character)}を削除`);
+          remove.addEventListener("click", () => {
+            characters.splice(index, 1);
+            if (!characters.length) characters.push(newCharacter());
+            saveCharacters();
+            refreshAll();
           });
-          card.querySelector(".remove-character").disabled = characters.length === 1;
-          card.querySelector(".remove-character").addEventListener("click", () => {
-            if (characters.length === 1) return;
-            characters.splice(characters.indexOf(character), 1);
-            renderCharacters();
-            refreshCharacterOptions();
-          });
+          heading.append(name, counts, remove);
+          card.append(heading);
           list.append(card);
-        }
-      }
-
-      function addChip(parent, text) {
-        const chip = document.createElement("span");
-        chip.className = "data-chip";
-        chip.textContent = text;
-        parent.append(chip);
-      }
-
-      function setOptions(select, items, preferred) {
-        const previous = preferred ?? select.value;
-        select.replaceChildren();
-        for (const [value, label] of items) {
-          const option = document.createElement("option");
-          option.value = value;
-          option.textContent = label;
-          select.append(option);
-        }
-        if (items.some(([value]) => String(value) === String(previous))) select.value = previous;
-      }
-
-      function selectedCharacter(selectId) { return characters.find((item) => item.id === $(selectId).value) || characters[0]; }
-      function characterOptions(selectId) {
-        const select = $(selectId);
-        const previous = select.value;
-        setOptions(select, characters.map((character, index) => [character.id, character.name || `キャラクター ${index + 1}`]), previous);
-      }
-
-      function populateSide(prefix) {
-        const character = selectedCharacter(`${prefix}-character`);
-        const kind = $(`${prefix}-kind`).value;
-        const itemSelect = $(`${prefix}-item`);
-        const input = $(`${prefix}-value`);
-        const sourceField = itemSelect.closest("label");
-        sourceField.hidden = kind === "custom";
-        if (kind === "custom") return;
-        const values = kind === "stat" ? character.stats : character.skills;
-        const items = Object.entries(values).sort(([a], [b]) => a.localeCompare(b, "ja"));
-        const previous = itemSelect.value;
-        setOptions(itemSelect, items.length ? items.map(([key, value]) => [key, `${key} (${value})`]) : [["", kind === "stat" ? "能力値なし" : "技能データなし"]], previous);
-        if (itemSelect.value && values[itemSelect.value] !== undefined) input.value = values[itemSelect.value];
-      }
-
-      function refreshCharacterOptions() {
-        for (const id of ["active-character", "passive-character", "solo-character"]) characterOptions(id);
-        populateSide("active");
-        populateSide("passive");
-        populateSolo();
-        updateContestChance();
-      }
-
-      function populateSolo() {
-        const character = selectedCharacter("solo-character");
-        const kind = $("solo-kind").value;
-        const select = $("solo-item");
-        const label = select.closest("label");
-        label.hidden = kind === "custom";
-        if (kind === "custom") return;
-        const values = kind === "stat" ? character.stats : character.skills;
-        const items = Object.entries(values).sort(([a], [b]) => a.localeCompare(b, "ja"));
-        const previous = select.value;
-        setOptions(select, items.length ? items.map(([key, value]) => [key, `${key} (${value})`]) : [["", kind === "stat" ? "能力値なし" : "技能データなし"]], previous);
-        if (select.value && values[select.value] !== undefined) $("solo-value").value = values[select.value];
-      }
-
-      function updateEdition() {
-        const seventh = $("edition-select").value === "7";
-        $("header-edition").textContent = `クトゥルフ神話TRPG 第${seventh ? "7" : "6"}版`;
-        $("contest-rule").textContent = seventh ? "7版: 双方の成功段階を比較" : "6版: 50 + (能動値 − 受動値) × 5";
-        $("contest-chance-label").textContent = seventh ? "能動側の目標値" : "能動側の対抗成功率";
-        $("contest-note").textContent = seventh ? "7版は双方が個別にロールし、成功段階を比較します。能力値は×5を目標値にします。" : "6版の対抗成功率を表示します。対抗するキャラクターと項目は自由に組み合わせられます。";
-        updateContestChance();
-      }
-
-      function rawValue(prefix) { return Number($(`${prefix}-value`).value) || 0; }
-      function testTarget(prefix) {
-        const value = rawValue(prefix);
-        return $("edition-select").value === "7" && $(`${prefix}-kind`).value === "stat" ? Math.min(100, value * 5) : Math.min(100, value);
-      }
-      function chance(active, passive) { return Math.max(0, Math.min(100, 50 + (active - passive) * 5)); }
-      function updateContestChance() {
-        const target = $("edition-select").value === "7" ? testTarget("active") : chance(rawValue("active"), rawValue("passive"));
-        $("contest-chance").innerHTML = `${target}<small>${$("edition-select").value === "7" ? "%" : "%"}</small>`;
-      }
-      function d100() { return crypto.getRandomValues(new Uint32Array(1))[0] % 100 + 1; }
-      function outcome(roll, target, edition) {
-        if (roll === 1) return { rank: 4, text: "クリティカル", className: "critical" };
-        if ((target < 50 && roll >= 96) || roll === 100) return { rank: 0, text: "ファンブル", className: "failure" };
-        if (roll > target) return { rank: 0, text: "失敗", className: "failure" };
-        if (edition === "7") {
-          if (roll <= Math.floor(target / 5)) return { rank: 3, text: "イクストリーム成功", className: "success" };
-          if (roll <= Math.floor(target / 2)) return { rank: 2, text: "ハード成功", className: "success" };
-        }
-        return { rank: 1, text: "成功", className: "success" };
-      }
-
-      function showResult(id, text, detail, command) {
-        const box = $(id);
-        box.replaceChildren();
-        const label = document.createElement("span");
-        label.className = "result-text";
-        label.textContent = text;
-        const info = document.createElement("span");
-        info.className = "result-detail";
-        info.textContent = detail;
-        const code = document.createElement("code");
-        code.className = "roll-command";
-        code.textContent = command;
-        const copy = document.createElement("button");
-        copy.className = "copy-button";
-        copy.type = "button";
-        copy.textContent = "コピー";
-        copy.setAttribute("aria-label", `${command} をコピー`);
-        copy.addEventListener("click", async () => {
-          try {
-            await navigator.clipboard.writeText(command);
-          } catch {
-            const temporary = document.createElement("textarea");
-            temporary.value = command;
-            temporary.style.position = "fixed";
-            temporary.style.opacity = "0";
-            document.body.append(temporary);
-            temporary.select();
-            document.execCommand("copy");
-            temporary.remove();
-          }
-          copy.textContent = "コピー済み";
-          setTimeout(() => { copy.textContent = "コピー"; }, 1400);
         });
-        box.append(label, info, code, copy);
       }
-
-      function rollContest() {
-        const edition = $("edition-select").value;
-        const active = testTarget("active");
-        const passive = testTarget("passive");
-        const activeName = selectedCharacter("active-character").name || "能動側";
-        const passiveName = selectedCharacter("passive-character").name || "受動側";
-        if (edition === "6") {
-          const target = chance(rawValue("active"), rawValue("passive"));
-          const roll = d100();
-          const result = roll <= target ? "対抗成功" : "対抗失敗";
-          showResult("contest-result", `${activeName}: ${result}`, `出目 ${roll} / 目標 ${target}%`, `CCB<=${target}`);
+      function receiveFiles(files) {
+        const textFiles = [...files].filter((file) => file.type === "text/plain" || /\.txt$/i.test(file.name));
+        if (!textFiles.length) {
+          $("import-status").textContent = "テキストファイル（.txt）を選択してください";
           return;
         }
-        const activeRoll = d100();
-        const passiveRoll = d100();
-        const activeOutcome = outcome(activeRoll, active, edition);
-        const passiveOutcome = outcome(passiveRoll, passive, edition);
-        let resultText;
-        if (activeOutcome.rank !== passiveOutcome.rank) resultText = `${activeOutcome.rank > passiveOutcome.rank ? activeName : passiveName}の勝利`;
-        else if (activeOutcome.rank === 0) resultText = "双方失敗";
-        else if (active > passive) resultText = `${activeName}の勝利`;
-        else if (passive > active) resultText = `${passiveName}の勝利`;
-        else resultText = "引き分け";
-        const detail = `${activeName} ${activeRoll} (${activeOutcome.text}) / ${passiveName} ${passiveRoll} (${passiveOutcome.text})`;
-        showResult("contest-result", resultText, detail, `CCB<=${active}`);
+        Promise.all(textFiles.map(async (file) => ({ file, text: await file.text() }))).then((loaded) => {
+          if (characters.length === 1 && !characters[0].raw && !characters[0].name && !Object.keys(characters[0].stats).length && !Object.keys(characters[0].skills).length) characters = [];
+          for (const { file, text } of loaded) {
+            const parsed = parseSheet(text);
+            if (!parsed.name) parsed.name = file.name.replace(/\.txt$/i, "");
+            characters.push({ ...parsed, id: `char-${nextId++}` });
+          }
+          saveCharacters();
+          refreshAll();
+          $("import-status").textContent = `${textFiles.length} 件のファイルを読み込みました`;
+        }).catch(() => { $("import-status").textContent = "ファイルを読み込めませんでした"; });
+      }
+      function commandTarget(prefix) {
+        const raw = Math.max(0, Number($(`${prefix}-value`).value) || 0);
+        return $(`${prefix}-kind`).value === "stat" ? Math.min(100, raw * 5) : Math.min(100, raw);
+      }
+      function updatePaletteCommand() { $("palette-command").textContent = `CCB<=${commandTarget("palette")}`; }
+      function updateContestChance() {
+        const chance = Math.max(0, Math.min(100, 50 + (Number($("active-value").value || 0) - Number($("passive-value").value || 0)) * 5));
+        const value = $("edition-select").value === "6" && $("active-kind").value === "stat" && $("passive-kind").value === "stat" ? chance : commandTarget("active");
+        $("contest-caption").textContent = $("edition-select").value === "6" ? "6版 対抗成功率" : "能動側の目標値（7版）";
+        $("contest-chance").textContent = `${value}%`;
+      }
+      function snapshotPreset(name) {
+        return { id: `preset-${Date.now()}-${Math.random().toString(16).slice(2)}`, name, edition: $("edition-select").value, active: captureSide("active"), passive: captureSide("passive") };
+      }
+      function presetTarget(side) {
+        const value = Math.max(0, Number(side.value) || 0);
+        return side.kind === "stat" ? Math.min(100, value * 5) : Math.min(100, value);
+      }
+      function captureSide(prefix) { return { character: $(`${prefix}-character`).value, kind: $(`${prefix}-kind`).value, item: $(`${prefix}-item`).value, value: $(`${prefix}-value`).value }; }
+      function applyPreset(preset) {
+        $("edition-select").value = preset.edition || "6";
+        $("header-edition").textContent = `クトゥルフ神話TRPG 第${$("edition-select").value}版`;
+        for (const prefix of ["active", "passive"]) {
+          const side = preset[prefix];
+          $(`${prefix}-character`).value = characters.some((character) => character.id === side.character) ? side.character : characters[0].id;
+          $(`${prefix}-kind`).value = side.kind;
+          updateItemSelect(prefix);
+          if (side.item) $(`${prefix}-item`).value = side.item;
+          $(`${prefix}-value`).value = side.value;
+        }
+        updatePaletteCommand();
+        updateContestChance();
+      }
+      function renderPresets() {
+        const list = $("preset-list");
+        list.replaceChildren();
+        if (!presets.length) {
+          const empty = document.createElement("div");
+          empty.className = "empty-presets";
+          empty.textContent = "保存したプリセットはありません";
+          list.append(empty);
+          return;
+        }
+        for (const preset of presets) {
+          const row = document.createElement("div");
+          row.className = "preset-row";
+          const apply = document.createElement("button");
+          apply.className = "preset-main";
+          apply.type = "button";
+          const title = document.createElement("strong");
+          title.textContent = preset.name;
+          const caption = document.createElement("small");
+          caption.textContent = `${preset.edition}版 · ${sideCaption(preset.active)} 対 ${sideCaption(preset.passive)}`;
+          apply.append(title, caption);
+          apply.addEventListener("click", () => applyPreset(preset));
+          const target = presetTarget(preset.active);
+          const command = document.createElement("code");
+          command.className = "preset-command";
+          command.textContent = `CCB<=${target}`;
+          const copy = document.createElement("button");
+          copy.className = "copy-button";
+          copy.type = "button";
+          copy.textContent = "コピー";
+          copy.addEventListener("click", () => copyText(command.textContent, copy));
+          const remove = document.createElement("button");
+          remove.className = "copy-button delete-preset";
+          remove.type = "button";
+          remove.textContent = "削除";
+          remove.setAttribute("aria-label", `${preset.name}を削除`);
+          remove.addEventListener("click", () => {
+            presets = presets.filter((item) => item.id !== preset.id);
+            localStorage.setItem(presetsKey, JSON.stringify(presets));
+            renderPresets();
+          });
+          row.append(apply, command, copy, remove);
+          list.append(row);
+        }
+      }
+      function sideCaption(side) {
+        const character = characters.find((item) => item.id === side.character);
+        return `${character ? characterLabel(character) : "キャラ"} ${side.item || side.kind}`;
+      }
+      async function copyText(text, button) {
+        try { await navigator.clipboard.writeText(text); }
+        catch {
+          const temp = document.createElement("textarea");
+          temp.value = text;
+          document.body.append(temp);
+          temp.select();
+          document.execCommand("copy");
+          temp.remove();
+        }
+        const label = button.textContent;
+        button.textContent = "コピー済み";
+        setTimeout(() => { button.textContent = label; }, 1200);
       }
 
-      function rollSolo() {
-        const target = testTarget("solo");
-        const roll = d100();
-        const result = outcome(roll, target, $("edition-select").value);
-        const character = selectedCharacter("solo-character");
-        showResult("solo-result", `${character.name || "判定"}: ${result.text}`, `出目 ${roll} / 目標 ${target}%`, `CCB<=${target}`);
-      }
-
-      $("add-character").addEventListener("click", () => addCharacter());
-      $("edition-select").addEventListener("change", updateEdition);
-      for (const prefix of ["active", "passive"]) {
-        $(`${prefix}-character`).addEventListener("change", () => populateSide(prefix));
-        $(`${prefix}-kind`).addEventListener("change", () => populateSide(prefix));
+      $("sheet-files").addEventListener("change", (event) => {
+        receiveFiles(event.target.files);
+        event.target.value = "";
+      });
+      const dropZone = $("drop-zone");
+      for (const eventName of ["dragenter", "dragover"]) dropZone.addEventListener(eventName, (event) => { event.preventDefault(); dropZone.classList.add("is-over"); });
+      for (const eventName of ["dragleave", "drop"]) dropZone.addEventListener(eventName, (event) => { event.preventDefault(); dropZone.classList.remove("is-over"); });
+      dropZone.addEventListener("drop", (event) => receiveFiles(event.dataTransfer.files));
+      for (const prefix of ["palette", "active", "passive"]) {
+        $(`${prefix}-character`).addEventListener("change", () => updateItemSelect(prefix));
+        $(`${prefix}-kind`).addEventListener("change", () => updateItemSelect(prefix));
         $(`${prefix}-item`).addEventListener("change", () => {
-          const character = selectedCharacter(`${prefix}-character`);
-          const source = $( `${prefix}-kind`).value === "stat" ? character.stats : character.skills;
-          if (source[$(`${prefix}-item`).value] !== undefined) $(`${prefix}-value`).value = source[$(`${prefix}-item`).value];
+          const character = characters.find((item) => item.id === $(`${prefix}-character`).value) || characters[0];
+          const values = $(`${prefix}-kind`).value === "stat" ? character.stats : character.skills;
+          if (values[$(`${prefix}-item`).value] !== undefined) $(`${prefix}-value`).value = values[$(`${prefix}-item`).value];
+          updatePaletteCommand();
           updateContestChance();
         });
-        $(`${prefix}-value`).addEventListener("input", updateContestChance);
+        $(`${prefix}-value`).addEventListener("input", () => { updatePaletteCommand(); updateContestChance(); });
       }
-      $("solo-character").addEventListener("change", populateSolo);
-      $("solo-kind").addEventListener("change", populateSolo);
-      $("solo-item").addEventListener("change", populateSolo);
-      $("solo-value").addEventListener("input", updateContestChance);
-      $("roll-contest").addEventListener("click", rollContest);
-      $("roll-solo").addEventListener("click", rollSolo);
-
-      addCharacter();
-      addCharacter();
-      updateEdition();
-      return;
-
-      {
-      const STAT_LABELS = [
-        ["STR", "STR / 筋力"], ["CON", "CON / 耐久力"], ["POW", "POW / 精神力"],
-        ["DEX", "DEX / 敏捷性"], ["APP", "APP / 外見"], ["SIZ", "SIZ / 体格"],
-        ["INT", "INT / 知性"], ["EDU", "EDU / 教育"], ["SAN", "SAN / 正気度"],
-        ["幸運", "幸運"], ["アイデア", "アイデア"], ["知識", "知識"]
-      ];
-      const STAT_ALIASES = new Map([
-        ["STR", "STR"], ["筋力", "STR"], ["CON", "CON"], ["耐久力", "CON"],
-        ["POW", "POW"], ["精神力", "POW"], ["DEX", "DEX"], ["敏捷性", "DEX"],
-        ["APP", "APP"], ["外見", "APP"], ["SIZ", "SIZ"], ["体格", "SIZ"],
-        ["INT", "INT"], ["知性", "INT"], ["EDU", "EDU"], ["教育", "EDU"],
-        ["SAN", "SAN"], ["幸運", "幸運"], ["アイデア", "アイデア"], ["知識", "知識"]
-      ]);
-      const characters = { a: emptyCharacter(), b: emptyCharacter() };
-      const $ = (id) => document.getElementById(id);
-
-      function emptyCharacter() { return { name: "", stats: {}, skills: {} }; }
-
-      function parseCharacter(text) {
-        const parsed = emptyCharacter();
-        const lines = text.split(/\r?\n/);
-        const nameLine = lines.find((line) => /^\s*(?:【基本情報】\s*)?名前\s*[:：]/.test(line));
-        if (nameLine) parsed.name = nameLine.replace(/^\s*(?:【基本情報】\s*)?名前\s*[:：]\s*/, "").trim();
-
-        let inSkills = false;
-        for (const line of lines) {
-          if (/【\s*技能値\s*】/.test(line)) inSkills = true;
-          if (!inSkills) {
-            const statMatch = line.match(/^\s*([^\s]+)\s+(-?\d+)(?:\s+[-\d]+)*/);
-            if (statMatch) {
-              const key = STAT_ALIASES.get(statMatch[1].toUpperCase()) || STAT_ALIASES.get(statMatch[1]);
-              if (key) parsed.stats[key] = Number(statMatch[2]);
-            }
-            continue;
-          }
-          if (!line.trim() || /【\s*技能値\s*】|技能名|合計|初期値|職業P|興味P|成長分|その他/.test(line) || /^\s*[『「【]/.test(line)) continue;
-          const skillMatch = line.match(/^\s*(.*?)\s+(\d{1,3})(?:\s+\d{1,3}){0,6}\s*$/);
-          if (!skillMatch) continue;
-          const skillName = skillMatch[1].trim();
-          if (!skillName || /^[-\d\s]+$/.test(skillName)) continue;
-          parsed.skills[skillName] = Number(skillMatch[2]);
-        }
-        return parsed;
-      }
-
-      function readCharacter(id) {
-        const parsed = parseCharacter($("sheet-" + id).value);
-        characters[id] = parsed;
-        const name = parsed.name || "キャラクター " + id.toUpperCase();
-        $("character-name-" + id).textContent = name;
-        const statCount = Object.keys(parsed.stats).length;
-        const skillCount = Object.keys(parsed.skills).length;
-        const status = $("status-" + id);
-        if (!statCount && !skillCount) {
-          status.textContent = "データを認識できません。形式を確認してください。";
-          status.classList.add("error");
-        } else {
-          status.textContent = `${statCount}能力値・${skillCount}技能を読み込みました`;
-          status.classList.remove("error");
-        }
-        const summary = $("summary-" + id);
-        summary.replaceChildren();
-        if (statCount) addChip(summary, `${statCount} 能力値`);
-        if (skillCount) addChip(summary, `${skillCount} 技能`);
-        if (!parsed.name && (statCount || skillCount)) addChip(summary, "名前なし");
-        updateSelectors();
-      }
-
-      function addChip(parent, text) {
-        const chip = document.createElement("span");
-        chip.className = "data-chip";
-        chip.textContent = text;
-        parent.append(chip);
-      }
-
-      function setOptions(select, items, selectedValue) {
-        const previous = selectedValue ?? select.value;
-        select.replaceChildren();
-        for (const [value, label] of items) {
-          const option = document.createElement("option");
-          option.value = value;
-          option.textContent = label;
-          select.append(option);
-        }
-        if (items.some(([value]) => value === previous)) select.value = previous;
-      }
-
-      function updateSelectors() {
-        for (const id of ["a", "b"]) {
-          const statSelect = $("attr-" + id);
-          const statCurrent = statSelect.value || "STR";
-          setOptions(statSelect, STAT_LABELS.map(([key, label]) => [key, `${label}${characters[id].stats[key] === undefined ? "" : ` (${characters[id].stats[key]})`}`]), statCurrent);
-          const skillSelect = $("skill-" + id);
-          const skillCurrent = skillSelect.value;
-          const skills = Object.entries(characters[id].skills).sort(([left], [right]) => left.localeCompare(right, "ja"));
-          setOptions(skillSelect, skills.length ? skills.map(([name, value]) => [name, `${name} (${value})`]) : [["", "技能データなし"]], skillCurrent);
-          syncValue("attr-" + id, "attr-value-" + id, characters[id].stats);
-          syncValue("skill-" + id, "skill-value-" + id, characters[id].skills);
-        }
-        updateSoloSkills();
-        updateChances();
-      }
-
-      function syncValue(selectId, inputId, values) {
-        const key = $(selectId).value;
-        const value = values[key];
-        if (value !== undefined) $(inputId).value = value;
-      }
-
-      function updateSoloSkills() {
-        const id = $("solo-character").value;
-        const select = $("solo-skill");
-        const previous = select.value;
-        const skills = Object.entries(characters[id].skills).sort(([left], [right]) => left.localeCompare(right, "ja"));
-        setOptions(select, skills.length ? skills.map(([name, value]) => [name, `${name} (${value})`]) : [["", "技能データなし"]], previous);
-        if (select.value && characters[id].skills[select.value] !== undefined) $("solo-value").value = characters[id].skills[select.value];
-      }
-
-      function chance(active, passive) {
-        return Math.max(0, Math.min(100, 50 + (Number(active) - Number(passive)) * 5));
-      }
-
-      function updateChances() {
-        $("attr-chance").innerHTML = `${chance($("attr-value-a").value, $("attr-value-b").value)}<small>%</small>`;
-        $("skill-chance").innerHTML = `${chance($("skill-value-a").value, $("skill-value-b").value)}<small>%</small>`;
-      }
-
-      function d100() { return crypto.getRandomValues(new Uint32Array(1))[0] % 100 + 1; }
-
-      function showResult(id, result, detail) {
-        const box = $(id);
-        box.replaceChildren();
-        const text = document.createElement("span");
-        text.className = "result-text " + result.className;
-        text.textContent = result.text;
-        const extra = document.createElement("span");
-        extra.className = "result-detail";
-        extra.textContent = detail;
-        box.append(text, extra);
-      }
-
-      function skillOutcome(roll, target) {
-        if (roll === 1) return { text: "クリティカル", className: "critical" };
-        if ((target < 50 && roll >= 96) || roll === 100) return { text: "ファンブル", className: "failure" };
-        if (roll > target) return { text: "失敗", className: "failure" };
-        if (roll <= Math.floor(target / 5)) return { text: "イクストリーム成功", className: "success" };
-        if (roll <= Math.floor(target / 2)) return { text: "ハード成功", className: "success" };
-        return { text: "通常成功", className: "success" };
-      }
-
-      for (const id of ["a", "b"]) $("load-" + id).addEventListener("click", () => readCharacter(id));
-      for (const id of ["attr-a", "attr-b", "skill-a", "skill-b"]) {
-        $(id).addEventListener("change", () => {
-          if (id.startsWith("attr-")) syncValue(id, id.replace("attr-", "attr-value-"), characters[id.endsWith("a") ? "a" : "b"].stats);
-          else syncValue(id, id.replace("skill-", "skill-value-"), characters[id.endsWith("a") ? "a" : "b"].skills);
-          updateChances();
-        });
-      }
-      for (const id of ["attr-value-a", "attr-value-b", "skill-value-a", "skill-value-b"]) $(id).addEventListener("input", updateChances);
-      $("solo-character").addEventListener("change", updateSoloSkills);
-      $("solo-skill").addEventListener("change", updateSoloSkills);
-
-      $("roll-attr").addEventListener("click", () => {
-        const target = chance($("attr-value-a").value, $("attr-value-b").value);
-        const roll = d100();
-        const success = roll <= target;
-        showResult("attr-result", { text: success ? "成功" : "失敗", className: success ? "success" : "failure" }, `出目 ${roll} / 目標 ${target}%`);
+      $("edition-select").addEventListener("change", () => {
+        $("header-edition").textContent = `クトゥルフ神話TRPG 第${$("edition-select").value}版`;
+        updatePaletteCommand();
+        updateContestChance();
       });
-
-      $("roll-skill-contest").addEventListener("click", () => {
-        const target = chance($("skill-value-a").value, $("skill-value-b").value);
-        const roll = d100();
-        const success = roll <= target;
-        showResult("skill-contest-result", { text: success ? "Aの対抗成功" : "Aの対抗失敗", className: success ? "success" : "failure" }, `出目 ${roll} / 目標 ${target}%`);
+      $("save-preset").addEventListener("click", () => {
+        const name = $("preset-name").value.trim();
+        if (!name) { $("preset-name").focus(); return; }
+        presets.unshift(snapshotPreset(name));
+        localStorage.setItem(presetsKey, JSON.stringify(presets));
+        $("preset-name").value = "";
+        renderPresets();
       });
-
-      $("roll-solo").addEventListener("click", () => {
-        const target = Number($("solo-value").value) || 0;
-        const roll = d100();
-        const outcome = skillOutcome(roll, target);
-        showResult("solo-result", outcome, `出目 ${roll} / 技能値 ${target}`);
-      });
-
-      updateSelectors();
-      }
+      $("copy-palette").addEventListener("click", (event) => copyText($("palette-command").textContent, event.currentTarget));
+      refreshAll();
     })();
   </script>
 </body>
